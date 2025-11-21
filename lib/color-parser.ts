@@ -306,3 +306,120 @@ export function suggestAccessibleAlternative(
   // If we couldn't meet the target, return the best we found
   return bestRatio > currentRatio ? { suggested: bestColor, ratio: bestRatio } : null;
 }
+
+/**
+ * Calculate Delta-E 2000 (CIEDE2000) color distance
+ * Returns perceptual difference between two colors
+ * 0 = identical, <5 = visually similar, >10 = clearly different
+ */
+export function getColorDistance(color1: string, color2: string): number {
+  const c1 = tinycolor(color1);
+  const c2 = tinycolor(color2);
+
+  if (!c1.isValid() || !c2.isValid()) return Infinity;
+
+  // Convert to LAB color space for Delta-E calculation
+  const lab1 = rgbToLab(c1.toRgb());
+  const lab2 = rgbToLab(c2.toRgb());
+
+  // Simplified Delta-E calculation (using CIE76 for performance)
+  // For production, consider using full CIEDE2000 implementation
+  const deltaL = lab1.l - lab2.l;
+  const deltaA = lab1.a - lab2.a;
+  const deltaB = lab1.b - lab2.b;
+
+  return Math.sqrt(deltaL * deltaL + deltaA * deltaA + deltaB * deltaB);
+}
+
+/**
+ * Convert RGB to LAB color space
+ */
+function rgbToLab(rgb: { r: number; g: number; b: number }): { l: number; a: number; b: number } {
+  // Convert RGB to XYZ
+  let r = rgb.r / 255;
+  let g = rgb.g / 255;
+  let b = rgb.b / 255;
+
+  r = r > 0.04045 ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
+  g = g > 0.04045 ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
+  b = b > 0.04045 ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
+
+  const x = (r * 0.4124 + g * 0.3576 + b * 0.1805) * 100;
+  const y = (r * 0.2126 + g * 0.7152 + b * 0.0722) * 100;
+  const z = (r * 0.0193 + g * 0.1192 + b * 0.9505) * 100;
+
+  // Convert XYZ to LAB (using D65 illuminant)
+  const xn = 95.047;
+  const yn = 100.0;
+  const zn = 108.883;
+
+  const fx = x / xn > 0.008856 ? Math.pow(x / xn, 1 / 3) : (7.787 * x / xn) + 16 / 116;
+  const fy = y / yn > 0.008856 ? Math.pow(y / yn, 1 / 3) : (7.787 * y / yn) + 16 / 116;
+  const fz = z / zn > 0.008856 ? Math.pow(z / zn, 1 / 3) : (7.787 * z / zn) + 16 / 116;
+
+  const l = (116 * fy) - 16;
+  const a = 500 * (fx - fy);
+  const labB = 200 * (fy - fz);
+
+  return { l, a, b: labB };
+}
+
+export interface SimilarColorGroup {
+  representative: string; // Most frequently used color in the group
+  similar: Array<{ color: string; distance: number; count: number }>; // Other similar colors
+  totalCount: number; // Total occurrences across all colors in group
+}
+
+/**
+ * Find groups of similar colors based on Delta-E distance
+ * @param colors - Unique colors to analyze
+ * @param threshold - Delta-E threshold for similarity (default: 8)
+ */
+export function findSimilarColorGroups(
+  colors: ParsedColor[],
+  threshold: number = 8
+): SimilarColorGroup[] {
+  const groups: SimilarColorGroup[] = [];
+  const processed = new Set<string>();
+
+  // Sort colors by count (most used first) to prioritize common colors as representatives
+  const sortedColors = [...colors].sort((a, b) => (b.count || 0) - (a.count || 0));
+
+  sortedColors.forEach(color => {
+    if (processed.has(color.normalized)) return;
+
+    const similarColors: Array<{ color: string; distance: number; count: number }> = [];
+    let totalCount = color.count || 0;
+
+    // Find all colors similar to this one
+    sortedColors.forEach(otherColor => {
+      if (color.normalized === otherColor.normalized || processed.has(otherColor.normalized)) {
+        return;
+      }
+
+      const distance = getColorDistance(color.normalized, otherColor.normalized);
+
+      if (distance <= threshold) {
+        similarColors.push({
+          color: otherColor.normalized,
+          distance,
+          count: otherColor.count || 0,
+        });
+        totalCount += otherColor.count || 0;
+        processed.add(otherColor.normalized);
+      }
+    });
+
+    // Only create a group if we found similar colors
+    if (similarColors.length > 0) {
+      processed.add(color.normalized);
+      groups.push({
+        representative: color.normalized,
+        similar: similarColors.sort((a, b) => a.distance - b.distance),
+        totalCount,
+      });
+    }
+  });
+
+  return groups;
+}

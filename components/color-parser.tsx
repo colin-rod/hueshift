@@ -19,8 +19,20 @@ import {
   getContrastRatio,
   getWCAGCompliance,
   suggestAccessibleAlternative,
+  findSimilarColorGroups,
   type ParsedColor,
+  type SimilarColorGroup,
 } from "@/lib/color-parser";
+import {
+  generateTailwindPalette,
+  exportAsTailwindConfig,
+  exportAsCSS,
+  exportAsJSON,
+  getContrastPairs,
+  type TailwindPalette,
+  type CurveType,
+  type ShadeNumber,
+} from "@/lib/palette-generator";
 import Header from "@/components/header";
 import { HighlightedTextEditor } from "@/components/highlighted-text-editor";
 
@@ -57,6 +69,16 @@ export default function ColorParser() {
   const [copied, setCopied] = useState(false);
   const [backgroundColorForContrast, setBackgroundColorForContrast] = useState<string>("#ffffff");
   const [showAdvancedPicker, setShowAdvancedPicker] = useState(false);
+  const [similarityThreshold, setSimilarityThreshold] = useState<number>(8);
+
+  // Palette generator state
+  const [paletteBaseColor, setPaletteBaseColor] = useState<string>("#3b82f6");
+  const [paletteName, setPaletteName] = useState<string>("primary");
+  const [paletteTargetShade, setPaletteTargetShade] = useState<ShadeNumber>(500);
+  const [paletteCurveType, setPaletteCurveType] = useState<CurveType>("natural");
+  const [generatedPalette, setGeneratedPalette] = useState<TailwindPalette | null>(null);
+  const [paletteExportFormat, setPaletteExportFormat] = useState<"tailwind" | "css" | "json">("tailwind");
+  const [paletteCopied, setPaletteCopied] = useState(false);
 
   // Undo/Redo history
   const [textHistory, setTextHistory] = useState<string[]>([SAMPLE_TEXT]);
@@ -74,6 +96,11 @@ export default function ColorParser() {
   const uniqueColors = useMemo(() => {
     return getUniqueColors(parsedColors);
   }, [parsedColors]);
+
+  // Find similar color groups
+  const similarColorGroups = useMemo(() => {
+    return findSimilarColorGroups(uniqueColors, similarityThreshold);
+  }, [uniqueColors, similarityThreshold]);
 
   // Smart detection of color pairs from CSS
   const detectedColorPairs = useMemo(() => {
@@ -258,6 +285,87 @@ export default function ColorParser() {
     updateTextWithHistory(newText);
   };
 
+  const handleMergeSimilarColors = (group: SimilarColorGroup) => {
+    let newText = text;
+
+    // Replace each similar color with the representative
+    group.similar.forEach(({ color }) => {
+      newText = replaceColor(
+        newText,
+        parseColors(newText),
+        color,
+        group.representative,
+        "all"
+      );
+    });
+
+    updateTextWithHistory(newText);
+  };
+
+  // Generate palette when inputs change
+  useEffect(() => {
+    try {
+      const palette = generateTailwindPalette(paletteBaseColor, {
+        name: paletteName,
+        targetShade: paletteTargetShade,
+        curveType: paletteCurveType,
+      });
+      setGeneratedPalette(palette);
+    } catch (error) {
+      console.error("Error generating palette:", error);
+      setGeneratedPalette(null);
+    }
+  }, [paletteBaseColor, paletteName, paletteTargetShade, paletteCurveType]);
+
+  const handleCopyPaletteExport = async () => {
+    if (!generatedPalette) return;
+
+    let exportText = "";
+    if (paletteExportFormat === "tailwind") {
+      exportText = exportAsTailwindConfig(generatedPalette);
+    } else if (paletteExportFormat === "css") {
+      exportText = exportAsCSS(generatedPalette);
+    } else {
+      exportText = exportAsJSON(generatedPalette);
+    }
+
+    await navigator.clipboard.writeText(exportText);
+    setPaletteCopied(true);
+    setTimeout(() => setPaletteCopied(false), 2000);
+  };
+
+  const handleDownloadPaletteExport = () => {
+    if (!generatedPalette) return;
+
+    let exportText = "";
+    let filename = "";
+    let mimeType = "text/plain";
+
+    if (paletteExportFormat === "tailwind") {
+      exportText = exportAsTailwindConfig(generatedPalette);
+      filename = "tailwind.config.js";
+      mimeType = "text/javascript";
+    } else if (paletteExportFormat === "css") {
+      exportText = exportAsCSS(generatedPalette);
+      filename = `${generatedPalette.name}.css`;
+      mimeType = "text/css";
+    } else {
+      exportText = exportAsJSON(generatedPalette);
+      filename = `${generatedPalette.name}.json`;
+      mimeType = "application/json";
+    }
+
+    const blob = new Blob([exportText], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <>
       <Header />
@@ -330,8 +438,9 @@ export default function ColorParser() {
       {/* Right Panel: Color Gallery & Tools */}
       <div className="flex flex-col gap-4 overflow-auto">
         <Tabs defaultValue="gallery" className="w-full">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="gallery">Gallery</TabsTrigger>
+            <TabsTrigger value="palette">Palette</TabsTrigger>
             <TabsTrigger value="comparison">Before/After</TabsTrigger>
           </TabsList>
 
@@ -409,6 +518,105 @@ export default function ColorParser() {
                 </Card>
               )}
             </div>
+
+            {/* Similar Colors (Duplicate Finder) - Collapsible */}
+            {similarColorGroups.length > 0 && (
+              <details className="group" open>
+                <summary className="flex items-center gap-2 p-3 bg-white border rounded-lg cursor-pointer hover:bg-gray-50 list-none">
+                  <span className="text-lg">🔍</span>
+                  <span className="text-sm font-medium">Similar Colors</span>
+                  <Badge variant="secondary" className="text-[10px]">
+                    {similarColorGroups.length} {similarColorGroups.length === 1 ? "group" : "groups"}
+                  </Badge>
+                  <span className="ml-auto text-xs text-muted-foreground group-open:rotate-180 transition-transform">
+                    ▼
+                  </span>
+                </summary>
+                <div className="mt-2 space-y-2">
+                  {/* Sensitivity Slider */}
+                  <div className="p-3 bg-white border rounded-lg">
+                    <label className="text-xs font-medium mb-2 block">
+                      Sensitivity: {similarityThreshold.toFixed(1)} Delta-E
+                      <span className="ml-2 text-muted-foreground font-normal">
+                        ({similarityThreshold < 5 ? "Very Strict" : similarityThreshold < 10 ? "Moderate" : "Relaxed"})
+                      </span>
+                    </label>
+                    <input
+                      type="range"
+                      min="3"
+                      max="15"
+                      step="0.5"
+                      value={similarityThreshold}
+                      onChange={(e) => setSimilarityThreshold(parseFloat(e.target.value))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                      <span>Strict</span>
+                      <span>Relaxed</span>
+                    </div>
+                  </div>
+
+                  {/* Similar Color Groups */}
+                  {similarColorGroups.map((group, idx) => (
+                    <div key={idx} className="p-3 bg-white border rounded-lg space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium">Group {idx + 1}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {group.totalCount} total uses
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {/* Representative Color */}
+                        <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded">
+                          <div
+                            className="w-10 h-10 rounded border-2 border-blue-400"
+                            style={{ backgroundColor: group.representative }}
+                          />
+                          <div className="flex-1">
+                            <div className="text-xs font-mono font-semibold">
+                              {group.representative}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground">
+                              Representative • {uniqueColors.find(c => c.normalized === group.representative)?.count || 0} uses
+                            </div>
+                          </div>
+                          <Badge variant="default" className="text-[10px] px-1.5">
+                            Main
+                          </Badge>
+                        </div>
+
+                        {/* Similar Colors */}
+                        {group.similar.map((similar, sIdx) => (
+                          <div key={sIdx} className="flex items-center gap-2 p-2 border rounded hover:bg-gray-50">
+                            <div
+                              className="w-8 h-8 rounded border"
+                              style={{ backgroundColor: similar.color }}
+                            />
+                            <div className="flex-1">
+                              <div className="text-xs font-mono">
+                                {similar.color}
+                              </div>
+                              <div className="text-[10px] text-muted-foreground">
+                                Δ {similar.distance.toFixed(1)} • {similar.count} uses
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        onClick={() => handleMergeSimilarColors(group)}
+                      >
+                        Merge All → {group.representative}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </details>
+            )}
 
             {/* Detected Color Pairs (Smart Context Detection) - Collapsible */}
             {detectedColorPairs.length > 0 && (
@@ -768,6 +976,216 @@ export default function ColorParser() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* Palette Generator Tab */}
+          <TabsContent value="palette" className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold mb-3">Tailwind Palette Generator</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Generate accessible, visually consistent color palettes using HSLuv color space
+              </p>
+
+              {/* Input Controls */}
+              <Card className="mb-4">
+                <CardContent className="p-4 space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-sm font-medium mb-2 block">Base Color</label>
+                      <div className="flex gap-2">
+                        <Input
+                          value={paletteBaseColor}
+                          onChange={(e) => setPaletteBaseColor(e.target.value)}
+                          className="font-mono flex-1"
+                        />
+                        <HexColorPicker
+                          color={paletteBaseColor}
+                          onChange={setPaletteBaseColor}
+                          style={{ width: "100px", height: "100px" }}
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Palette Name</label>
+                        <Input
+                          value={paletteName}
+                          onChange={(e) => setPaletteName(e.target.value)}
+                          placeholder="primary"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Target Shade</label>
+                        <select
+                          value={paletteTargetShade}
+                          onChange={(e) => setPaletteTargetShade(Number(e.target.value) as ShadeNumber)}
+                          className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                        >
+                          <option value="400">400</option>
+                          <option value="500">500</option>
+                          <option value="600">600</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-sm font-medium mb-2 block">Curve Type</label>
+                    <div className="flex gap-2">
+                      <Button
+                        variant={paletteCurveType === "linear" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setPaletteCurveType("linear")}
+                        className="flex-1"
+                      >
+                        Linear
+                      </Button>
+                      <Button
+                        variant={paletteCurveType === "natural" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setPaletteCurveType("natural")}
+                        className="flex-1"
+                      >
+                        Natural
+                      </Button>
+                      <Button
+                        variant={paletteCurveType === "accessibility" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setPaletteCurveType("accessibility")}
+                        className="flex-1"
+                      >
+                        Accessibility
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Palette Preview */}
+              {generatedPalette && (
+                <>
+                  <div>
+                    <h4 className="text-sm font-semibold mb-3">Generated Palette</h4>
+                    <div className="grid grid-cols-11 gap-1">
+                      {generatedPalette.shades.map((shade) => (
+                        <TooltipProvider key={shade.shade}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <div className="flex flex-col items-center gap-1">
+                                <div
+                                  className="w-full h-16 rounded border-2 cursor-pointer hover:scale-105 transition-transform"
+                                  style={{ backgroundColor: shade.hex }}
+                                  title={shade.hex}
+                                />
+                                <span className="text-[10px] font-medium">{shade.shade}</span>
+                              </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <div className="text-xs space-y-1">
+                                <div className="font-mono font-semibold">{shade.hex}</div>
+                                <div className="text-[10px] text-muted-foreground">
+                                  vs White: {shade.contrastVsWhite.toFixed(2)}:1
+                                  {shade.wcagWhite.aaa ? " (AAA)" : shade.wcagWhite.aa ? " (AA)" : " (Fail)"}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground">
+                                  vs Black: {shade.contrastVsBlack.toFixed(2)}:1
+                                  {shade.wcagBlack.aaa ? " (AAA)" : shade.wcagBlack.aa ? " (AA)" : " (Fail)"}
+                                </div>
+                              </div>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Contrast Validation Matrix */}
+                  <Card>
+                    <CardContent className="p-4">
+                      <h4 className="text-sm font-semibold mb-3">Contrast Validation</h4>
+                      <div className="space-y-1">
+                        {getContrastPairs(generatedPalette).map((pair, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded"
+                          >
+                            <span className="font-mono">
+                              {pair.lightShade} on {pair.darkShade}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono">{pair.contrast.toFixed(2)}:1</span>
+                              <Badge
+                                variant={pair.aaa ? "default" : pair.aa ? "default" : "destructive"}
+                                className={`text-[10px] px-1.5 ${
+                                  pair.aaa ? "bg-green-600" : pair.aa ? "bg-green-500" : ""
+                                }`}
+                              >
+                                {pair.aaa ? "AAA" : pair.aa ? "AA" : "Fail"}
+                              </Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Export Section */}
+                  <Card>
+                    <CardContent className="p-4 space-y-4">
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Export Format</label>
+                        <div className="flex gap-2">
+                          <Button
+                            variant={paletteExportFormat === "tailwind" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setPaletteExportFormat("tailwind")}
+                            className="flex-1"
+                          >
+                            Tailwind
+                          </Button>
+                          <Button
+                            variant={paletteExportFormat === "css" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setPaletteExportFormat("css")}
+                            className="flex-1"
+                          >
+                            CSS
+                          </Button>
+                          <Button
+                            variant={paletteExportFormat === "json" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setPaletteExportFormat("json")}
+                            className="flex-1"
+                          >
+                            JSON
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button onClick={handleCopyPaletteExport} className="flex-1">
+                          {paletteCopied ? (
+                            <>
+                              <Check className="w-4 h-4 mr-2" />
+                              Copied!
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-4 h-4 mr-2" />
+                              Copy to Clipboard
+                            </>
+                          )}
+                        </Button>
+                        <Button variant="outline" onClick={handleDownloadPaletteExport} className="flex-1">
+                          <Download className="w-4 h-4 mr-2" />
+                          Download
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+            </div>
           </TabsContent>
 
           {/* Before/After Comparison Tab */}
