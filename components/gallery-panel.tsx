@@ -28,10 +28,10 @@ export function GalleryPanel({
   onApplySuggestion,
 }: GalleryPanelProps) {
   return (
-    <div className="flex flex-col gap-4 h-full overflow-auto">
+    <div className="flex flex-col gap-6 h-full overflow-auto">
       {/* Compact Background Selector */}
       <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2 p-3 bg-white border rounded-lg">
+        <div className="flex flex-wrap items-center gap-2 p-3 md:p-4 bg-white border rounded-lg">
           <span className="text-sm font-medium whitespace-nowrap">Testing against:</span>
           <Input
             value={backgroundColorForContrast}
@@ -105,7 +105,7 @@ export function GalleryPanel({
       {/* Similar Colors (Duplicate Finder) - Collapsible */}
       {similarColorGroups.length > 0 && (
         <details className="group" open>
-          <summary className="flex items-center gap-2 p-3 bg-white border rounded-lg cursor-pointer hover:bg-gray-50 list-none">
+          <summary className="flex items-center gap-2 p-3 md:p-4 bg-white border rounded-lg cursor-pointer hover:bg-gray-50 list-none">
             <span className="text-lg">🔍</span>
             <span className="text-sm font-medium">Similar Colors</span>
             <Badge variant="secondary" className="text-[10px]">
@@ -117,7 +117,7 @@ export function GalleryPanel({
           </summary>
           <div className="mt-2 space-y-2">
             {/* Sensitivity Slider */}
-            <div className="p-3 bg-white border rounded-lg">
+            <div className="p-3 md:p-4 bg-white border rounded-lg">
               <label className="text-xs font-medium mb-2 block">
                 Sensitivity: {similarityThreshold.toFixed(1)} Delta-E
                 <span className="ml-2 text-muted-foreground font-normal">
@@ -141,7 +141,7 @@ export function GalleryPanel({
 
             {/* Similar Color Groups */}
             {similarColorGroups.map((group, idx) => (
-              <div key={idx} className="p-3 bg-white border rounded-lg space-y-2">
+              <div key={idx} className="p-3 md:p-4 bg-white border rounded-lg space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium">Group {idx + 1}</span>
                   <span className="text-xs text-muted-foreground">
@@ -204,7 +204,7 @@ export function GalleryPanel({
       {/* Detected Color Pairs (Smart Context Detection) - Collapsible */}
       {detectedColorPairs.length > 0 && (
         <details className="group">
-          <summary className="flex items-center gap-2 p-3 bg-white border rounded-lg cursor-pointer hover:bg-gray-50 list-none">
+          <summary className="flex items-center gap-2 p-3 md:p-4 bg-white border rounded-lg cursor-pointer hover:bg-gray-50 list-none">
             <span className="text-lg">🎯</span>
             <span className="text-sm font-medium">Detected Color Pairs</span>
             <Badge variant="secondary" className="text-[10px]">
@@ -214,7 +214,7 @@ export function GalleryPanel({
               ▼
             </span>
           </summary>
-          <div className="mt-2 p-3 bg-white border rounded-lg space-y-2">
+          <div className="mt-2 p-3 md:p-4 bg-white border rounded-lg space-y-2">
             {detectedColorPairs.map((pair, idx) => {
               const contrastRatio = getContrastRatio(pair.foreground, pair.background);
               const compliance = getWCAGCompliance(contrastRatio);
@@ -259,7 +259,7 @@ export function GalleryPanel({
         </details>
       )}
 
-      <div>
+      <div className="max-w-5xl mx-auto">
         <h3 className="text-lg font-semibold mb-3">Detected Colors</h3>
         {uniqueColors.length === 0 ? (
           <p className="text-sm text-muted-foreground">
@@ -267,7 +267,7 @@ export function GalleryPanel({
           </p>
         ) : (
           <TooltipProvider>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-3 gap-4">
               {uniqueColors.map(color => {
                 const contrastRatio = getContrastRatio(color.normalized, backgroundColorForContrast);
                 const compliance = getWCAGCompliance(contrastRatio);
@@ -287,7 +287,7 @@ export function GalleryPanel({
                           selectedColor === color.normalized ? null : color.normalized
                         )}
                       >
-                        <CardContent className="p-3 flex flex-col gap-3">
+                        <CardContent className="p-3 md:p-4 flex flex-col gap-3">
                           {/* Header: Hex Title + WCAG Badge */}
                           <div className="flex items-start justify-between gap-2">
                             <span className="text-xs font-mono font-semibold truncate" title={color.normalized}>

@@ -373,7 +373,7 @@ export default function ColorParser() {
               </TabsContent>
 
               <TabsContent value="comparison" className="h-full p-4 pt-4 m-0 overflow-auto">
-                <div>
+                <div className="max-w-3xl mx-auto">
                   <h3 className="text-lg font-semibold mb-4">Palette Comparison</h3>
                   <div className="grid grid-cols-2 gap-6">
                     <div>
@@ -490,7 +490,7 @@ export default function ColorParser() {
           </TabsContent>
 
           <TabsContent value="comparison" className="p-4 m-0">
-            <div>
+            <div className="max-w-3xl mx-auto">
               <h3 className="text-lg font-semibold mb-4">Palette Comparison</h3>
               <div className="space-y-6">
                 <div>

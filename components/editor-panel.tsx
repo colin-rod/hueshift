@@ -11,7 +11,7 @@ export function EditorPanel({
   selectedColor,
 }: Omit<EditorPanelProps, 'canUndo' | 'canRedo' | 'onUndo' | 'onRedo' | 'onReset' | 'onCopy' | 'onDownload' | 'copied'>) {
   return (
-    <div className="flex flex-col gap-4 h-full">
+    <div className="flex flex-col gap-6 h-full">
       <div>
         <h2 className="text-xl md:text-2xl font-bold">Text Editor</h2>
         <p className="text-xs md:text-sm text-muted-foreground">
