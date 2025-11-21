@@ -25,6 +25,7 @@ import {
   ChevronDown,
   Menu,
   User,
+  Palette,
 } from "lucide-react";
 
 interface HeaderProps {
@@ -51,6 +52,7 @@ export default function Header({
 }: HeaderProps) {
   const pathname = usePathname();
   const isColorParserPage = pathname === "/";
+  const isPalettePage = pathname === "/palette";
   const showActions = isColorParserPage && onUndo && onRedo && onReset && onCopy && onDownload;
 
   return (
@@ -70,8 +72,23 @@ export default function Header({
             </div>
           </Link>
 
-          {/* Right: Actions + User Menu */}
+          {/* Right: Navigation + Actions + User Menu */}
           <div className="flex items-center gap-2">
+            {/* Palette Generator Link */}
+            <Link href="/palette">
+              <Button
+                variant={isPalettePage ? "default" : "ghost"}
+                size="sm"
+                className="hidden md:flex"
+              >
+                <Palette className="w-4 h-4 mr-2" />
+                Palette Generator
+              </Button>
+            </Link>
+
+            {/* Separator if actions are shown */}
+            {showActions && <div className="hidden md:block w-px h-6 bg-border mx-1" />}
+
             {/* Desktop Actions - Only on Color Parser page */}
             {showActions && (
               <div className="hidden md:flex items-center gap-2">
@@ -131,26 +148,42 @@ export default function Header({
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-                <div className="w-px h-6 bg-border mx-2" />
               </div>
             )}
 
-            {/* Mobile Hamburger Menu - Only on Color Parser page */}
-            {showActions && (
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="md:hidden"
-                    title="Actions menu"
-                  >
-                    <Menu className="w-5 h-5" />
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="right" className="w-64">
-                  <div className="flex flex-col gap-2 mt-8">
-                    <h3 className="text-sm font-semibold mb-2">Actions</h3>
+            {/* Mobile Menu - Show on all pages */}
+            <Sheet>
+              <SheetTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="md:hidden"
+                  title="Menu"
+                >
+                  <Menu className="w-5 h-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="right" className="w-64">
+                <div className="flex flex-col gap-2 mt-8">
+                  {/* Navigation */}
+                  <h3 className="text-sm font-semibold mb-2">Navigation</h3>
+                  <SheetClose asChild>
+                    <Link href="/palette">
+                      <Button
+                        variant={isPalettePage ? "default" : "ghost"}
+                        className="justify-start w-full"
+                      >
+                        <Palette className="w-4 h-4 mr-2" />
+                        Palette Generator
+                      </Button>
+                    </Link>
+                  </SheetClose>
+
+                  {/* Actions - Only on Color Parser page */}
+                  {showActions && (
+                    <>
+                      <div className="h-px bg-border my-2" />
+                      <h3 className="text-sm font-semibold mb-2">Actions</h3>
                     <SheetClose asChild>
                       <Button
                         variant="ghost"
@@ -213,10 +246,11 @@ export default function Header({
                         Download
                       </Button>
                     </SheetClose>
-                  </div>
-                </SheetContent>
-              </Sheet>
-            )}
+                    </>
+                  )}
+                </div>
+              </SheetContent>
+            </Sheet>
 
             {/* User Menu Placeholder */}
             <Button variant="ghost" size="sm" className="rounded-full" title="User menu">
