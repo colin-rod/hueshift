@@ -45,7 +45,7 @@ export function ColorsTab({
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 200,
+    estimateSize: () => 280,
     overscan: 5,
   });
 
