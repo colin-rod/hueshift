@@ -10,26 +10,31 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SectionHeader } from "@/components/ui/section-header";
-import { GalleryPanelProps } from "@/lib/types";
 import { getContrastRatio, getWCAGCompliance, suggestAccessibleAlternative } from "@/lib/color-parser";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { ParsedColor } from "@/lib/types";
 
-export function GalleryPanel({
+interface ColorsTabProps {
+  uniqueColors: ParsedColor[];
+  backgroundColorForContrast: string;
+  showAdvancedPicker: boolean;
+  selectedColor: string | null;
+  onColorSelect: (color: string | null) => void;
+  onBackgroundColorChange: (color: string) => void;
+  onShowAdvancedPickerToggle: (show: boolean) => void;
+  onApplySuggestion: (original: string, suggested: string) => void;
+}
+
+export function ColorsTab({
   uniqueColors,
-  parsedColors,
-  similarColorGroups,
-  detectedColorPairs,
   backgroundColorForContrast,
   showAdvancedPicker,
-  similarityThreshold,
   selectedColor,
   onColorSelect,
   onBackgroundColorChange,
   onShowAdvancedPickerToggle,
-  onSimilarityThresholdChange,
-  onMergeSimilarColors,
   onApplySuggestion,
-}: GalleryPanelProps) {
+}: ColorsTabProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
   // Calculate rows for 3-column grid
@@ -40,14 +45,14 @@ export function GalleryPanel({
   const rowVirtualizer = useVirtualizer({
     count: rowCount,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => 200, // Estimated row height (card height + gap)
-    overscan: 5, // Render 5 extra rows above/below for smooth scrolling
+    estimateSize: () => 200,
+    overscan: 5,
   });
 
   return (
-    <div ref={parentRef} className="flex flex-col gap-6 h-full overflow-auto">
-      {/* Compact Background Selector */}
-      <div className="space-y-2">
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Compact Background Selector - Fixed at top */}
+      <div className="flex-shrink-0 p-4 space-y-2">
         <div className="flex flex-wrap items-center gap-2 p-3 md:p-4 bg-card border rounded-lg">
           <span className="text-sm font-medium whitespace-nowrap">Testing against:</span>
           <Input
@@ -119,164 +124,9 @@ export function GalleryPanel({
         )}
       </div>
 
-      {/* Similar Colors (Duplicate Finder) - Collapsible */}
-      {similarColorGroups.length > 0 && (
-        <details className="group" open>
-          <summary className="flex items-center gap-2 p-3 md:p-4 bg-card border rounded-lg cursor-pointer hover:bg-muted list-none">
-            <span className="text-lg">🔍</span>
-            <span className="text-sm font-medium">Similar Colors</span>
-            <Badge variant="secondary" className="text-[10px]">
-              {similarColorGroups.length} {similarColorGroups.length === 1 ? "group" : "groups"}
-            </Badge>
-            <span className="ml-auto text-xs text-muted-foreground group-open:rotate-180 transition-transform">
-              ▼
-            </span>
-          </summary>
-          <div className="mt-2 space-y-2">
-            {/* Sensitivity Slider */}
-            <div className="p-3 md:p-4 bg-card border rounded-lg">
-              <label className="text-xs font-medium mb-2 block">
-                Sensitivity: {similarityThreshold.toFixed(1)} Delta-E
-                <span className="ml-2 text-muted-foreground font-normal">
-                  ({similarityThreshold < 5 ? "Very Strict" : similarityThreshold < 10 ? "Moderate" : "Relaxed"})
-                </span>
-              </label>
-              <input
-                type="range"
-                min="3"
-                max="15"
-                step="0.5"
-                value={similarityThreshold}
-                onChange={(e) => onSimilarityThresholdChange(parseFloat(e.target.value))}
-                className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer"
-              />
-              <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
-                <span>Strict</span>
-                <span>Relaxed</span>
-              </div>
-            </div>
-
-            {/* Similar Color Groups */}
-            {similarColorGroups.map((group, idx) => (
-              <div key={idx} className="p-3 md:p-4 bg-card border rounded-lg space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium">Group {idx + 1}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {group.totalCount} total uses
-                  </span>
-                </div>
-
-                <div className="space-y-1.5">
-                  {/* Representative Color */}
-                  <div className="flex items-center gap-2 p-2 bg-blue-50 border border-blue-200 rounded">
-                    <div
-                      className="w-10 h-10 rounded border-2 border-blue-400"
-                      style={{ backgroundColor: group.representative }}
-                    />
-                    <div className="flex-1">
-                      <div className="text-xs font-mono font-semibold">
-                        {group.representative}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground">
-                        Representative • {uniqueColors.find(c => c.normalized === group.representative)?.count || 0} uses
-                      </div>
-                    </div>
-                    <Badge variant="default" className="text-[10px] px-1.5">
-                      Main
-                    </Badge>
-                  </div>
-
-                  {/* Similar Colors */}
-                  {group.similar.map((similar, sIdx) => (
-                    <div key={sIdx} className="flex items-center gap-2 p-2 border rounded hover:bg-muted">
-                      <div
-                        className="w-8 h-8 rounded border"
-                        style={{ backgroundColor: similar.color }}
-                      />
-                      <div className="flex-1">
-                        <div className="text-xs font-mono">
-                          {similar.color}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground">
-                          Δ {similar.distance.toFixed(1)} • {similar.count} uses
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <Button
-                  size="sm"
-                  className="w-full"
-                  onClick={() => onMergeSimilarColors(group)}
-                >
-                  Merge All → {group.representative}
-                </Button>
-              </div>
-            ))}
-          </div>
-        </details>
-      )}
-
-      {/* Detected Color Pairs (Smart Context Detection) - Collapsible */}
-      {detectedColorPairs.length > 0 && (
-        <details className="group">
-          <summary className="flex items-center gap-2 p-3 md:p-4 bg-card border rounded-lg cursor-pointer hover:bg-muted list-none">
-            <span className="text-lg">🎯</span>
-            <span className="text-sm font-medium">Detected Color Pairs</span>
-            <Badge variant="secondary" className="text-[10px]">
-              {detectedColorPairs.length}
-            </Badge>
-            <span className="ml-auto text-xs text-muted-foreground group-open:rotate-180 transition-transform">
-              ▼
-            </span>
-          </summary>
-          <div className="mt-2 p-3 md:p-4 bg-card border rounded-lg space-y-2">
-            {detectedColorPairs.map((pair, idx) => {
-              const contrastRatio = getContrastRatio(pair.foreground, pair.background);
-              const compliance = getWCAGCompliance(contrastRatio);
-
-              return (
-                <div
-                  key={idx}
-                  className="flex items-center gap-3 p-2 border rounded-md hover:bg-muted cursor-pointer"
-                  onClick={() => onBackgroundColorChange(pair.background)}
-                >
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-8 h-8 rounded border"
-                      style={{ backgroundColor: pair.foreground }}
-                      title={`Foreground: ${pair.foreground}`}
-                    />
-                    <span className="text-xs">on</span>
-                    <div
-                      className="w-8 h-8 rounded border"
-                      style={{ backgroundColor: pair.background }}
-                      title={`Background: ${pair.background}`}
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-xs font-mono truncate">
-                      {pair.foreground} on {pair.background}
-                    </div>
-                    <div className="text-[10px] text-muted-foreground">
-                      Contrast: {contrastRatio.toFixed(2)}:1
-                    </div>
-                  </div>
-                  <Badge
-                    variant={compliance.aa.normal ? "default" : "destructive"}
-                    className="text-[10px] px-1.5"
-                  >
-                    {compliance.aaa.normal ? "AAA" : compliance.aa.normal ? "AA" : "Fail"}
-                  </Badge>
-                </div>
-              );
-            })}
-          </div>
-        </details>
-      )}
-
-      <div className="max-w-5xl mx-auto">
+      {/* Scrollable color grid */}
+      <div ref={parentRef} className="flex-1 overflow-auto p-4">
+        <div className="max-w-5xl mx-auto">
         <SectionHeader title="Detected Colors" size="sm" className="mb-3" />
         {uniqueColors.length === 0 ? (
           <p className="text-sm text-muted-foreground">
@@ -505,6 +355,7 @@ export function GalleryPanel({
             </div>
           </TooltipProvider>
         )}
+        </div>
       </div>
     </div>
   );

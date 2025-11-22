@@ -1,6 +1,7 @@
 "use client";
 
 import { HighlightedTextEditor } from "@/components/highlighted-text-editor";
+import { SectionHeader } from "@/components/ui/section-header";
 import { EditorPanelProps } from "@/lib/types";
 
 export function EditorPanel({
@@ -12,12 +13,10 @@ export function EditorPanel({
 }: Omit<EditorPanelProps, 'canUndo' | 'canRedo' | 'onUndo' | 'onRedo' | 'onReset' | 'onCopy' | 'onDownload' | 'copied'>) {
   return (
     <div className="flex flex-col gap-6 h-full">
-      <div>
-        <h2 className="text-xl md:text-2xl font-bold">Text Editor</h2>
-        <p className="text-xs md:text-sm text-muted-foreground">
-          Paste your code or text containing colors
-        </p>
-      </div>
+      <SectionHeader
+        title="Text Editor"
+        description="Paste your code or text containing colors"
+      />
 
       <HighlightedTextEditor
         value={text}

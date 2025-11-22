@@ -4,12 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Sheet,
   SheetContent,
   SheetTrigger,
@@ -19,14 +13,10 @@ import {
   Undo,
   Redo,
   RefreshCw,
-  Copy,
-  Download,
-  Check,
-  ChevronDown,
   Menu,
-  User,
   Palette,
 } from "lucide-react";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 
 interface HeaderProps {
   // Optional props for Color Parser page actions
@@ -35,9 +25,7 @@ interface HeaderProps {
   onUndo?: () => void;
   onRedo?: () => void;
   onReset?: () => void;
-  onCopy?: () => void;
-  onDownload?: () => void;
-  copied?: boolean;
+  children?: React.ReactNode;
 }
 
 export default function Header({
@@ -46,19 +34,18 @@ export default function Header({
   onUndo,
   onRedo,
   onReset,
-  onCopy,
-  onDownload,
-  copied = false,
+  children,
 }: HeaderProps) {
   const pathname = usePathname();
   const isColorParserPage = pathname === "/";
   const isPalettePage = pathname === "/palette";
-  const showActions = isColorParserPage && onUndo && onRedo && onReset && onCopy && onDownload;
+  const showActions = isColorParserPage && onUndo && onRedo && onReset;
 
   return (
-    <header className="border-b bg-white">
-      <div className="container mx-auto px-6 py-6">
-        <div className="flex items-center justify-between">
+    <header className="border-b bg-background">
+      <div className="container mx-auto px-4 py-4">
+        {/* Top Row: Logo + Actions */}
+        <div className="flex items-center justify-between mb-4">
           {/* Left: Logo + Description (inline) */}
           <Link href="/">
             <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity">
@@ -72,22 +59,8 @@ export default function Header({
             </div>
           </Link>
 
-          {/* Right: Navigation + Actions + User Menu */}
+          {/* Right: Actions + User Menu */}
           <div className="flex items-center gap-2">
-            {/* Palette Generator Link */}
-            <Link href="/palette">
-              <Button
-                variant={isPalettePage ? "default" : "ghost"}
-                size="sm"
-                className="hidden md:flex"
-              >
-                <Palette className="w-4 h-4 mr-2" />
-                Palette Generator
-              </Button>
-            </Link>
-
-            {/* Separator if actions are shown */}
-            {showActions && <div className="hidden md:block w-px h-6 bg-border mx-1" />}
 
             {/* Desktop Actions - Only on Color Parser page */}
             {showActions && (
@@ -121,33 +94,6 @@ export default function Header({
                   <RefreshCw className="w-4 h-4 mr-2" />
                   Reset
                 </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="sm">
-                      Export
-                      <ChevronDown className="w-4 h-4 ml-2" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={onCopy}>
-                      {copied ? (
-                        <>
-                          <Check className="w-4 h-4 mr-2" />
-                          Copied!
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-4 h-4 mr-2" />
-                          Copy
-                        </>
-                      )}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={onDownload}>
-                      <Download className="w-4 h-4 mr-2" />
-                      Download
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
               </div>
             )}
 
@@ -216,48 +162,23 @@ export default function Header({
                         Reset
                       </Button>
                     </SheetClose>
-                    <div className="h-px bg-border my-2" />
-                    <SheetClose asChild>
-                      <Button
-                        variant="ghost"
-                        className="justify-start"
-                        onClick={onCopy}
-                      >
-                        {copied ? (
-                          <>
-                            <Check className="w-4 h-4 mr-2" />
-                            Copied!
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4 mr-2" />
-                            Copy
-                          </>
-                        )}
-                      </Button>
-                    </SheetClose>
-                    <SheetClose asChild>
-                      <Button
-                        variant="ghost"
-                        className="justify-start"
-                        onClick={onDownload}
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        Download
-                      </Button>
-                    </SheetClose>
                     </>
                   )}
                 </div>
               </SheetContent>
             </Sheet>
 
-            {/* User Menu Placeholder */}
-            <Button variant="ghost" size="sm" className="rounded-full" title="User menu">
-              <User className="w-5 h-5" />
-            </Button>
+            {/* Theme Toggle */}
+            <ThemeToggle />
           </div>
         </div>
+
+        {/* Second Row: Children (Tab Navigation) */}
+        {children && (
+          <div className="hidden md:block">
+            {children}
+          </div>
+        )}
       </div>
     </header>
   );

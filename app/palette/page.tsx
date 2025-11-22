@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { SectionHeader } from "@/components/ui/section-header";
 import Header from "@/components/header";
 import {
   generateTailwindPalette,
@@ -96,14 +97,13 @@ export default function PalettePage() {
   return (
     <>
       <Header />
-      <div className="min-h-[calc(100vh-80px)] p-4 md:p-6 bg-gray-50">
+      <div className="min-h-[calc(100vh-80px)] p-4 md:p-6 bg-muted">
         <div className="max-w-6xl mx-auto space-y-6">
-          <div>
-            <h1 className="text-3xl font-bold mb-2">Tailwind Palette Generator</h1>
-            <p className="text-muted-foreground">
-              Generate accessible, visually consistent color palettes using HSLuv color space
-            </p>
-          </div>
+          <SectionHeader
+            title="Tailwind Palette Generator"
+            description="Generate accessible, visually consistent color palettes using HSLuv color space"
+            size="lg"
+          />
 
           {/* Input Controls */}
           <Card>
@@ -195,7 +195,7 @@ export default function PalettePage() {
             <>
               <Card>
                 <CardContent className="p-6">
-                  <h3 className="text-lg font-semibold mb-4">Generated Palette</h3>
+                  <SectionHeader title="Generated Palette" size="sm" className="mb-4" />
                   <div className="grid grid-cols-11 gap-2">
                     {generatedPalette.shades.map((shade) => (
                       <TooltipProvider key={shade.shade}>
@@ -233,12 +233,12 @@ export default function PalettePage() {
               {/* Contrast Validation Matrix */}
               <Card>
                 <CardContent className="p-6">
-                  <h3 className="text-lg font-semibold mb-4">Contrast Validation</h3>
+                  <SectionHeader title="Contrast Validation" size="sm" className="mb-4" />
                   <div className="grid md:grid-cols-2 gap-2">
                     {getContrastPairs(generatedPalette).map((pair, idx) => (
                       <div
                         key={idx}
-                        className="flex items-center justify-between text-sm p-3 bg-gray-50 rounded-lg"
+                        className="flex items-center justify-between text-sm p-3 bg-secondary rounded-lg"
                       >
                         <span className="font-mono">
                           {pair.lightShade} on {pair.darkShade}
@@ -263,7 +263,7 @@ export default function PalettePage() {
               {/* Export Section */}
               <Card>
                 <CardContent className="p-6 space-y-4">
-                  <h3 className="text-lg font-semibold">Export Palette</h3>
+                  <SectionHeader title="Export Palette" size="sm" />
 
                   <div>
                     <label className="text-sm font-medium mb-3 block">Format</label>

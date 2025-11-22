@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import tinycolor from "tinycolor2";
 import { HexColorPicker } from "react-colorful";
 import { Palette, CheckCircle, XCircle, AlertTriangle } from "lucide-react";
@@ -7,6 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { SectionHeader } from "@/components/ui/section-header";
+import { InfoTooltip } from "@/components/ui/info-tooltip";
 import { InspectorPanelProps } from "@/lib/types";
 import { getContrastRatio, getWCAGCompliance, suggestAccessibleAlternative } from "@/lib/color-parser";
 
@@ -28,6 +31,8 @@ export function InspectorPanel({
   onShowAdvancedPickerToggle,
   onApplySuggestion,
 }: InspectorPanelProps) {
+  const [showBackgroundPicker, setShowBackgroundPicker] = useState(false);
+
   if (!selectedColor) {
     return null;
   }
@@ -40,10 +45,10 @@ export function InspectorPanel({
     : null;
 
   return (
-    <div className="flex flex-col gap-4 h-full overflow-auto p-4 bg-white border-l">
+    <div className="flex flex-col gap-4 h-full overflow-auto p-4 bg-background border-l">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-lg">Inspector</h3>
+        <SectionHeader title="Inspector" size="sm" className="flex-1" />
         <Button
           variant="ghost"
           size="sm"
@@ -92,35 +97,67 @@ export function InspectorPanel({
       {/* Contrast & Accessibility */}
       <Card>
         <CardContent className="p-4 space-y-3">
-          <h4 className="text-sm font-semibold">Accessibility</h4>
+          <div className="flex items-center">
+            <h4 className="text-sm font-semibold">Accessibility</h4>
+            <InfoTooltip content="Check how readable your color is when placed on different backgrounds. WCAG standards ensure text is readable for people with visual impairments." />
+          </div>
 
           {/* Background Color Selector */}
           <div className="space-y-2">
-            <label className="text-xs font-medium">Testing Background:</label>
+            <div className="flex items-center">
+              <label className="text-xs font-medium">Testing Background:</label>
+              <InfoTooltip content="Select a background color to test how well your selected color contrasts against it. This is important for text readability." />
+            </div>
             <div className="flex items-center gap-2">
               <Input
                 value={backgroundColorForContrast}
                 onChange={e => onBackgroundColorChange(e.target.value)}
                 className="font-mono text-xs h-8 flex-1"
               />
-              <div
-                className="w-8 h-8 rounded border-2 border-gray-300 flex-shrink-0"
-                style={{ backgroundColor: backgroundColorForContrast }}
-              />
+              <div className="relative">
+                <div
+                  className="w-8 h-8 rounded border-2 border-gray-300 flex-shrink-0 cursor-pointer hover:border-gray-400 transition-colors"
+                  style={{ backgroundColor: backgroundColorForContrast }}
+                  onClick={() => setShowBackgroundPicker(!showBackgroundPicker)}
+                  title="Click to open color picker"
+                />
+                {showBackgroundPicker && (
+                  <div className="absolute right-0 top-10 z-50 p-3 bg-white dark:bg-gray-800 rounded-lg shadow-lg border">
+                    <HexColorPicker
+                      color={backgroundColorForContrast}
+                      onChange={onBackgroundColorChange}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowBackgroundPicker(false)}
+                      className="w-full mt-2 text-xs"
+                    >
+                      Close
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="flex gap-1">
-              {["#ffffff", "#000000", "#f5f5f5", "#333333"].map(bg => (
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { color: "#ffffff", label: "White" },
+                { color: "#000000", label: "Black" },
+                { color: "#f5f5f5", label: "Light Gray" },
+                { color: "#333333", label: "Dark Gray" }
+              ].map(({ color, label }) => (
                 <Button
-                  key={bg}
-                  variant={backgroundColorForContrast === bg ? "default" : "outline"}
+                  key={color}
+                  variant={backgroundColorForContrast === color ? "default" : "outline"}
                   size="sm"
-                  onClick={() => onBackgroundColorChange(bg)}
-                  className="text-xs h-7 px-2 flex-1"
+                  onClick={() => onBackgroundColorChange(color)}
+                  className="text-xs h-8 px-2 flex gap-1.5 items-center justify-start"
                 >
                   <div
-                    className="w-3 h-3 rounded border mr-1"
-                    style={{ backgroundColor: bg }}
+                    className="w-3 h-3 rounded border flex-shrink-0"
+                    style={{ backgroundColor: color }}
                   />
+                  <span className="truncate">{label}</span>
                 </Button>
               ))}
             </div>
@@ -129,7 +166,10 @@ export function InspectorPanel({
           {/* Contrast Ratio */}
           <div className="border-t pt-3">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium">Contrast Ratio:</span>
+              <div className="flex items-center">
+                <span className="text-xs font-medium">Contrast Ratio:</span>
+                <InfoTooltip content="A measure of how much the color differs from the background. Higher ratios mean better readability. Minimum 4.5:1 recommended for normal text." />
+              </div>
               <span className="text-sm font-mono font-semibold">{contrastRatio.toFixed(2)}:1</span>
             </div>
 
@@ -236,7 +276,10 @@ export function InspectorPanel({
       {/* Color Picker Section */}
       <Card>
         <CardContent className="p-4 space-y-3">
-          <h4 className="text-sm font-semibold">Replace Color</h4>
+          <div className="flex items-center">
+            <h4 className="text-sm font-semibold">Replace Color</h4>
+            <InfoTooltip content="Choose a new color to replace the selected color in your text. You can pick from a visual color picker or enter a hex code directly." />
+          </div>
 
           {/* Advanced Picker Toggle */}
           <div className="flex items-center justify-between">
@@ -275,24 +318,33 @@ export function InspectorPanel({
 
           {/* Replacement Mode */}
           <div>
-            <label className="text-xs font-medium mb-2 block">Mode:</label>
-            <div className="flex gap-2">
-              <Button
-                variant={replacementMode === "all" ? "default" : "outline"}
-                size="sm"
-                onClick={() => onReplacementModeChange("all")}
-                className="flex-1"
-              >
-                All
-              </Button>
-              <Button
-                variant={replacementMode === "selective" ? "default" : "outline"}
-                size="sm"
-                onClick={() => onReplacementModeChange("selective")}
-                className="flex-1"
-              >
-                Select
-              </Button>
+            <div className="flex items-center mb-2">
+              <label className="text-xs font-medium">Mode:</label>
+              <InfoTooltip content="Choose whether to replace all occurrences of the color at once, or select specific instances to replace individually." />
+            </div>
+            <div className="flex flex-col gap-2">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="replacement-mode"
+                  value="all"
+                  checked={replacementMode === "all"}
+                  onChange={() => onReplacementModeChange("all")}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm">Replace all instances</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="replacement-mode"
+                  value="selective"
+                  checked={replacementMode === "selective"}
+                  onChange={() => onReplacementModeChange("selective")}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm">Select specific instances</span>
+              </label>
             </div>
           </div>
 

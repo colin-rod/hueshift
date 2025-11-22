@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
+import { useSearchParams, useRouter } from "next/navigation";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { PanelRightClose, PanelRightOpen } from "lucide-react";
+import { PanelRightOpen } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { useDebounce } from "@/lib/hooks/use-debounce";
 import {
   parseColors,
@@ -16,8 +16,15 @@ import {
 } from "@/lib/color-parser";
 import Header from "@/components/header";
 import { EditorPanel } from "@/components/editor-panel";
-import { GalleryPanel } from "@/components/gallery-panel";
 import { InspectorPanel } from "@/components/inspector-panel";
+import { TabNavigation, type TabType } from "@/components/ui/tab-navigation";
+import { EditorToggle } from "@/components/ui/editor-toggle";
+import { ColorsTab } from "@/components/tabs/colors-tab";
+import { DuplicatesTab } from "@/components/tabs/duplicates-tab";
+import { PairsTab } from "@/components/tabs/pairs-tab";
+import { CompareTab } from "@/components/tabs/compare-tab";
+import { GenerateTab } from "@/components/tabs/generate-tab";
+import { ExportTab } from "@/components/tabs/export-tab";
 
 const SAMPLE_TEXT = `/* Sample CSS with colors */
 .header {
@@ -43,6 +50,33 @@ const SAMPLE_TEXT = `/* Sample CSS with colors */
 }`;
 
 export default function ColorParser() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Tab state (with URL sync)
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    const tabParam = searchParams?.get("tab");
+    return (tabParam as TabType) || "colors";
+  });
+
+  // Editor visibility state (with localStorage)
+  const [editorVisible, setEditorVisible] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("hueshift-editor-visible");
+      return stored !== null ? stored === "true" : true; // default to true
+    }
+    return true;
+  });
+
+  // Editor lock state (with localStorage)
+  const [editorLocked, setEditorLocked] = useState(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("hueshift-editor-locked");
+      return stored === "true";
+    }
+    return false;
+  });
+
   // Text state
   const [text, setText] = useState(SAMPLE_TEXT);
   const [originalText, setOriginalText] = useState(SAMPLE_TEXT);
@@ -54,7 +88,6 @@ export default function ColorParser() {
   const [selectedInstances, setSelectedInstances] = useState<string[]>([]);
 
   // UI state
-  const [copied, setCopied] = useState(false);
   const [backgroundColorForContrast, setBackgroundColorForContrast] = useState<string>("#ffffff");
   const [showAdvancedPicker, setShowAdvancedPicker] = useState(false);
   const [similarityThreshold, setSimilarityThreshold] = useState<number>(8);
@@ -213,23 +246,6 @@ export default function ColorParser() {
     setSelectedInstances([]);
   };
 
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleDownload = () => {
-    const blob = new Blob([text], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "hueshift-output.txt";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
 
   const handleReset = () => {
     setText(originalText);
@@ -297,9 +313,55 @@ export default function ColorParser() {
     }
   }, [isDragging]);
 
-  // Calculate panel widths
-  const galleryWidth = selectedColor ? (100 - editorWidth - 25) : (100 - editorWidth);
-  const inspectorWidth = 25;
+  // Sync tab changes with URL
+  const handleTabChange = (tab: TabType) => {
+    setActiveTab(tab);
+    const params = new URLSearchParams(searchParams?.toString());
+    params.set("tab", tab);
+    router.push(`?${params.toString()}`, { scroll: false });
+
+    // Auto-hide editor on non-colors tabs ONLY if not locked
+    if (tab !== "colors" && editorVisible && !editorLocked) {
+      setEditorVisible(false);
+    }
+
+    // Auto-show editor on colors tab if it was hidden (and not locked to hidden)
+    if (tab === "colors" && !editorVisible && !editorLocked) {
+      setEditorVisible(true);
+    }
+  };
+
+  // Toggle editor visibility
+  const handleEditorToggle = () => {
+    const newVisible = !editorVisible;
+    setEditorVisible(newVisible);
+    localStorage.setItem("hueshift-editor-visible", String(newVisible));
+  };
+
+  // Toggle editor lock
+  const handleEditorLockToggle = () => {
+    const newLocked = !editorLocked;
+    setEditorLocked(newLocked);
+    localStorage.setItem("hueshift-editor-locked", String(newLocked));
+  };
+
+  // Update editor visibility based on active tab (only on initial tab load)
+  useEffect(() => {
+    // Only auto-adjust editor visibility if not locked
+    if (!editorLocked) {
+      setEditorVisible(activeTab === "colors");
+    }
+  }, []); // Only run once on mount
+
+  // Calculate panel widths based on editor visibility
+  const calculatePanelWidths = () => {
+    const baseEditorWidth = editorVisible ? editorWidth : 0;
+    const inspectorWidth = selectedColor ? 25 : 0;
+    const galleryWidth = 100 - baseEditorWidth - inspectorWidth;
+    return { editorWidth: baseEditorWidth, galleryWidth, inspectorWidth };
+  };
+
+  const panelWidths = calculatePanelWidths();
 
   return (
     <>
@@ -309,121 +371,126 @@ export default function ColorParser() {
         onUndo={handleUndo}
         onRedo={handleRedo}
         onReset={handleReset}
-        onCopy={handleCopy}
-        onDownload={handleDownload}
-        copied={copied}
-      />
+      >
+        {/* Tab Navigation and Editor Toggle */}
+        <div className="flex items-center gap-3 flex-1 max-w-6xl mx-auto px-4">
+          <EditorToggle
+            isVisible={editorVisible}
+            isLocked={editorLocked}
+            onToggle={handleEditorToggle}
+            onLockToggle={handleEditorLockToggle}
+          />
+          <TabNavigation
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            duplicatesCount={similarColorGroups.length}
+            pairsCount={detectedColorPairs.length}
+          />
+        </div>
+      </Header>
 
       {/* Desktop/Tablet Layout */}
       <div
         ref={containerRef}
-        className="hidden md:flex h-[calc(100vh-80px)] bg-gray-50 overflow-hidden"
+        className="hidden md:flex h-[calc(100vh-80px)] bg-muted overflow-hidden"
       >
-        {/* Editor Panel */}
+        {/* Editor Panel - with smooth slide animation */}
         <div
-          style={{ width: `${editorWidth}%` }}
-          className="flex flex-col p-4 overflow-hidden border-r"
+          style={{
+            width: editorVisible ? `${editorWidth}%` : "0%",
+            transition: "width 0.3s ease-in-out",
+          }}
+          className="flex flex-col overflow-hidden border-r"
         >
-          <EditorPanel
-            text={text}
-            onTextChange={updateTextWithHistory}
-            parsedColors={parsedColors}
-            uniqueColors={uniqueColors}
-            selectedColor={selectedColor}
-          />
+          {editorVisible && (
+            <div className="p-4 h-full overflow-hidden">
+              <EditorPanel
+                text={text}
+                onTextChange={updateTextWithHistory}
+                parsedColors={parsedColors}
+                uniqueColors={uniqueColors}
+                selectedColor={selectedColor}
+              />
+            </div>
+          )}
         </div>
 
-        {/* Resizable Divider */}
-        <div
-          className="w-1 bg-gray-200 hover:bg-blue-500 cursor-col-resize transition-colors"
-          onMouseDown={handleMouseDown}
-        />
+        {/* Resizable Divider - only show when editor is visible */}
+        {editorVisible && (
+          <div
+            className="w-1 bg-border hover:bg-primary cursor-col-resize transition-colors"
+            onMouseDown={handleMouseDown}
+          />
+        )}
 
-        {/* Gallery + Tabs */}
+        {/* Main Content Area - Tab Content */}
         <div
-          style={{ width: `${galleryWidth}%` }}
+          style={{
+            width: `${panelWidths.galleryWidth}%`,
+            transition: "width 0.3s ease-in-out",
+          }}
           className="flex flex-col overflow-hidden"
         >
-          <Tabs defaultValue="gallery" className="flex flex-col h-full">
-            <div className="p-4 pb-0">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="gallery">Gallery</TabsTrigger>
-                <TabsTrigger value="comparison">Before/After</TabsTrigger>
-              </TabsList>
-            </div>
+          {activeTab === "colors" && (
+            <ColorsTab
+              uniqueColors={uniqueColors}
+              backgroundColorForContrast={backgroundColorForContrast}
+              showAdvancedPicker={showAdvancedPicker}
+              selectedColor={selectedColor}
+              onColorSelect={setSelectedColor}
+              onBackgroundColorChange={setBackgroundColorForContrast}
+              onShowAdvancedPickerToggle={setShowAdvancedPicker}
+              onApplySuggestion={handleApplySuggestion}
+            />
+          )}
 
-            <div className="flex-1 overflow-hidden">
-              <TabsContent value="gallery" className="h-full p-4 pt-4 m-0">
-                <GalleryPanel
-                  uniqueColors={uniqueColors}
-                  parsedColors={parsedColors}
-                  similarColorGroups={similarColorGroups}
-                  detectedColorPairs={detectedColorPairs}
-                  backgroundColorForContrast={backgroundColorForContrast}
-                  showAdvancedPicker={showAdvancedPicker}
-                  similarityThreshold={similarityThreshold}
-                  selectedColor={selectedColor}
-                  onColorSelect={setSelectedColor}
-                  onBackgroundColorChange={setBackgroundColorForContrast}
-                  onShowAdvancedPickerToggle={setShowAdvancedPicker}
-                  onSimilarityThresholdChange={setSimilarityThreshold}
-                  onMergeSimilarColors={handleMergeSimilarColors}
-                  onApplySuggestion={handleApplySuggestion}
-                />
-              </TabsContent>
+          {activeTab === "duplicates" && (
+            <DuplicatesTab
+              similarColorGroups={similarColorGroups}
+              uniqueColors={uniqueColors}
+              similarityThreshold={similarityThreshold}
+              onSimilarityThresholdChange={setSimilarityThreshold}
+              onMergeSimilarColors={handleMergeSimilarColors}
+            />
+          )}
 
-              <TabsContent value="comparison" className="h-full p-4 pt-4 m-0 overflow-auto">
-                <div className="max-w-3xl mx-auto">
-                  <h3 className="text-lg font-semibold mb-4">Palette Comparison</h3>
-                  <div className="grid grid-cols-2 gap-6">
-                    <div>
-                      <h4 className="text-sm font-medium mb-3">Original Palette</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {originalColors.map(color => (
-                          <div key={color.id} className="text-center">
-                            <div
-                              className="w-12 h-12 rounded border"
-                              style={{ backgroundColor: color.normalized }}
-                              title={color.normalized}
-                            />
-                            <span className="text-xs font-mono block mt-1">
-                              {color.normalized.substring(0, 7)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+          {activeTab === "pairs" && (
+            <PairsTab
+              detectedColorPairs={detectedColorPairs}
+              onBackgroundColorChange={setBackgroundColorForContrast}
+            />
+          )}
 
-                    <div>
-                      <h4 className="text-sm font-medium mb-3">Current Palette</h4>
-                      <div className="flex flex-wrap gap-2">
-                        {uniqueColors.map(color => (
-                          <div key={color.id} className="text-center">
-                            <div
-                              className="w-12 h-12 rounded border"
-                              style={{ backgroundColor: color.normalized }}
-                              title={color.normalized}
-                            />
-                            <span className="text-xs font-mono block mt-1">
-                              {color.normalized.substring(0, 7)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </TabsContent>
-            </div>
-          </Tabs>
+          {activeTab === "compare" && (
+            <CompareTab
+              originalColors={originalColors}
+              currentColors={uniqueColors}
+              originalText={originalText}
+              currentText={text}
+            />
+          )}
+
+          {activeTab === "generate" && (
+            <GenerateTab initialColor={selectedColor || undefined} />
+          )}
+
+          {activeTab === "export" && (
+            <ExportTab
+              originalText={originalText}
+              currentText={text}
+            />
+          )}
         </div>
 
         {/* Inspector Panel - Desktop (Collapsible) */}
         {selectedColor && (
           <>
-            <div className="w-1 bg-gray-200" />
+            <div className="w-1 bg-border" />
             <div
-              style={{ width: `${inspectorWidth}%` }}
+              style={{
+                width: `${panelWidths.inspectorWidth}%`,
+                transition: "width 0.3s ease-in-out",
+              }}
               className="flex flex-col overflow-hidden"
             >
               <InspectorPanel
@@ -450,88 +517,76 @@ export default function ColorParser() {
       </div>
 
       {/* Mobile Layout */}
-      <div className="md:hidden min-h-[calc(100vh-80px)] bg-gray-50">
-        <Tabs defaultValue="editor" className="w-full">
-          <div className="sticky top-0 bg-white z-10 border-b">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="editor">Editor</TabsTrigger>
-              <TabsTrigger value="gallery">Gallery</TabsTrigger>
-              <TabsTrigger value="comparison">Compare</TabsTrigger>
-            </TabsList>
-          </div>
-
-          <TabsContent value="editor" className="p-4 m-0">
-            <EditorPanel
-              text={text}
-              onTextChange={updateTextWithHistory}
-              parsedColors={parsedColors}
+      <div className="md:hidden min-h-[calc(100vh-80px)] bg-muted">
+        {/* Mobile content based on active tab */}
+        <div className="min-h-[calc(100vh-140px)]">
+          {activeTab === "colors" && (
+            <ColorsTab
               uniqueColors={uniqueColors}
-              selectedColor={selectedColor}
-            />
-          </TabsContent>
-
-          <TabsContent value="gallery" className="p-4 m-0">
-            <GalleryPanel
-              uniqueColors={uniqueColors}
-              parsedColors={parsedColors}
-              similarColorGroups={similarColorGroups}
-              detectedColorPairs={detectedColorPairs}
               backgroundColorForContrast={backgroundColorForContrast}
               showAdvancedPicker={showAdvancedPicker}
-              similarityThreshold={similarityThreshold}
               selectedColor={selectedColor}
               onColorSelect={setSelectedColor}
               onBackgroundColorChange={setBackgroundColorForContrast}
               onShowAdvancedPickerToggle={setShowAdvancedPicker}
-              onSimilarityThresholdChange={setSimilarityThreshold}
-              onMergeSimilarColors={handleMergeSimilarColors}
               onApplySuggestion={handleApplySuggestion}
             />
-          </TabsContent>
+          )}
 
-          <TabsContent value="comparison" className="p-4 m-0">
-            <div className="max-w-3xl mx-auto">
-              <h3 className="text-lg font-semibold mb-4">Palette Comparison</h3>
-              <div className="space-y-6">
-                <div>
-                  <h4 className="text-sm font-medium mb-3">Original Palette</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {originalColors.map(color => (
-                      <div key={color.id} className="text-center">
-                        <div
-                          className="w-12 h-12 rounded border"
-                          style={{ backgroundColor: color.normalized }}
-                          title={color.normalized}
-                        />
-                        <span className="text-xs font-mono block mt-1">
-                          {color.normalized.substring(0, 7)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+          {activeTab === "duplicates" && (
+            <DuplicatesTab
+              similarColorGroups={similarColorGroups}
+              uniqueColors={uniqueColors}
+              similarityThreshold={similarityThreshold}
+              onSimilarityThresholdChange={setSimilarityThreshold}
+              onMergeSimilarColors={handleMergeSimilarColors}
+            />
+          )}
 
-                <div>
-                  <h4 className="text-sm font-medium mb-3">Current Palette</h4>
-                  <div className="flex flex-wrap gap-2">
-                    {uniqueColors.map(color => (
-                      <div key={color.id} className="text-center">
-                        <div
-                          className="w-12 h-12 rounded border"
-                          style={{ backgroundColor: color.normalized }}
-                          title={color.normalized}
-                        />
-                        <span className="text-xs font-mono block mt-1">
-                          {color.normalized.substring(0, 7)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+          {activeTab === "pairs" && (
+            <PairsTab
+              detectedColorPairs={detectedColorPairs}
+              onBackgroundColorChange={setBackgroundColorForContrast}
+            />
+          )}
+
+          {activeTab === "compare" && (
+            <CompareTab
+              originalColors={originalColors}
+              currentColors={uniqueColors}
+              originalText={originalText}
+              currentText={text}
+            />
+          )}
+
+          {activeTab === "generate" && (
+            <GenerateTab initialColor={selectedColor || undefined} />
+          )}
+
+          {activeTab === "export" && (
+            <ExportTab
+              originalText={originalText}
+              currentText={text}
+            />
+          )}
+        </div>
+
+        {/* Mobile Editor Drawer - show when editor toggle is on */}
+        {editorVisible && (
+          <Sheet open={editorVisible} onOpenChange={(open) => !open && handleEditorToggle()}>
+            <SheetContent side="left" className="w-[90vw] sm:w-[400px] p-0">
+              <div className="p-4 h-full overflow-hidden">
+                <EditorPanel
+                  text={text}
+                  onTextChange={updateTextWithHistory}
+                  parsedColors={parsedColors}
+                  uniqueColors={uniqueColors}
+                  selectedColor={selectedColor}
+                />
               </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+            </SheetContent>
+          </Sheet>
+        )}
 
         {/* Mobile Inspector Drawer - Only show FAB and drawer on mobile */}
         {selectedColor && (

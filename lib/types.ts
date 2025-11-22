@@ -1,6 +1,17 @@
 import { ParsedColor, SimilarColorGroup } from "./color-parser";
 import { TailwindPalette, CurveType, ShadeNumber } from "./palette-generator";
 
+// Re-export commonly used types
+export type { ParsedColor, SimilarColorGroup };
+export type { TailwindPalette, CurveType, ShadeNumber };
+
+// Color Pair type
+export interface ColorPair {
+  foreground: string;
+  background: string;
+  context: string;
+}
+
 // Editor Panel Props
 export interface EditorPanelProps {
   text: string;

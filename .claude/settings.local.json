@@ -1,15 +1,14 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx create-next-app@latest . --typescript --tailwind --app --no-src-dir --import-alias \"@/*\" --use-npm)",
-      "Bash(npx create-next-app@latest . --typescript --tailwind --app --no-src-dir --import-alias \"@/*\" --use-npm --eslint)",
-      "Bash(npm install)",
       "Bash(npm install:*)",
+      "Bash(tree:*)",
       "Bash(npm run dev:*)",
       "Bash(npm run build:*)",
-      "Bash(git init:*)",
-      "Bash(git remote add:*)",
-      "Bash(git add:*)"
+      "Bash(curl:*)",
+      "Bash(git fetch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
